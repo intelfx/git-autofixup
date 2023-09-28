@@ -94,8 +94,12 @@ sub git_cmd {
 
 sub summary_for_commits {
     my $rev = shift;
+    my @files = @_;
     my %commits;
     my @cmd = git_cmd(qw(log --no-merges --format=%H:%s), "$rev..");
+    if (@files) {
+        push @cmd, '--', @files;
+    }
     open(my $fh, '-|', @cmd) or die "git log: $!\n";
     while (<$fh>) {
         chomp;
@@ -342,10 +346,12 @@ sub blame {
 
 sub diff_hunks {
     my $num_context_lines = shift;
+    my @files = @_;
     my @cmd = git_cmd(qw(-c diff.noprefix=false diff --no-ext-diff --ignore-submodules), "-U$num_context_lines");
     if (is_index_dirty()) {
         push @cmd, "--cached";
     }
+    push @cmd, @files;
     open(my $fh, '-|', @cmd) or die $!;
     my @hunks = parse_hunks($fh, keep_lines => 1);
     close($fh) or die "git diff: non-zero exit code";
@@ -516,8 +522,9 @@ sub main {
         pod2usage(-exitval => 0, -verbose => 2);
     }
 
-    @ARGV == 1 or die "No upstream commit given.\n";
+    @ARGV >= 1 or die "No upstream commit given.\n";
     my $upstream = shift @ARGV;
+    my @files = @ARGV;
     qx(git rev-parse --verify ${upstream}^{commit});
     $? == 0 or die "Can't resolve given commit.\n";
 
@@ -537,8 +544,8 @@ sub main {
     $? == 0 or die "Can't get repo toplevel dir\n";
     chdir $toplevel or die $!;
 
-    my $hunks = diff_hunks($num_context_lines);
-    my $summary_for = summary_for_commits($upstream);
+    my $hunks = diff_hunks($num_context_lines, @files);
+    my $summary_for = summary_for_commits($upstream, @files);
     my $alias_for = sha_aliases($summary_for);
     my %blame_for = map {$_ => blame($_, $alias_for)} @{$hunks};
     my $hunks_for = fixup_hunks_by_sha({
