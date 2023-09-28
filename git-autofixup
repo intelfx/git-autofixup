@@ -95,11 +95,14 @@ sub git_cmd {
 sub summary_for_commits {
     my $rev = shift;
     my %commits;
-    for (qx(git log --no-merges --format=%H:%s $rev..)) {
+    my @cmd = git_cmd(qw(log --no-merges --format=%H:%s), "$rev..");
+    open(my $fh, '-|', @cmd) or die "git log: $!\n";
+    while (<$fh>) {
         chomp;
         my ($sha, $msg) = split ':', $_, 2;
         $commits{$sha} = $msg;
     }
+    close($fh) or die "git log: non-zero exit code\n";
     return \%commits;
 }
 
